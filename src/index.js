@@ -9,18 +9,40 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
 
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
+const entries = fs.readdirSync(commandsPath, { withFileTypes: true });
 
 const commands = [];
-for (const file of commandFiles) {
-  const command = require(path.join(commandsPath, file));
-  if (!command || !command.data) {
-    console.warn(`Skipping invalid command file: ${file}`);
-    continue;
+for (const entry of entries) {
+  try {
+    if (entry.isDirectory()) {
+      // expect an index.js inside folder that exports a command
+      const cmdPath = path.join(commandsPath, entry.name, 'index.js');
+      if (!fs.existsSync(cmdPath)) {
+        console.warn(`Skipping directory (no index.js): ${entry.name}`);
+        continue;
+      }
+      const command = require(cmdPath);
+      if (!command || !command.data) {
+        console.warn(`Skipping invalid command in folder: ${entry.name}`);
+        continue;
+      }
+      commands.push(command.data.toJSON ? command.data.toJSON() : command.data);
+      const name = command.data.name || (command.data.toJSON && command.data.toJSON().name);
+      if (name) client.commands.set(name, command);
+    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+      const file = entry.name;
+      const command = require(path.join(commandsPath, file));
+      if (!command || !command.data) {
+        console.warn(`Skipping invalid command file: ${file}`);
+        continue;
+      }
+      commands.push(command.data.toJSON ? command.data.toJSON() : command.data);
+      const name = command.data.name || (command.data.toJSON && command.data.toJSON().name);
+      if (name) client.commands.set(name, command);
+    }
+  } catch (err) {
+    console.error('Error loading command entry', entry.name, err);
   }
-  commands.push(command.data.toJSON ? command.data.toJSON() : command.data);
-  const name = command.data.name || (command.data.toJSON && command.data.toJSON().name);
-  if (name) client.commands.set(name, command);
 }
 
 const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
@@ -31,6 +53,7 @@ client.once(Events.ClientReady, async c => {
 
   if (DEV_MODE) {
     try {
+      console.log('🔁 Registering Commands');
       console.log('🚀 [DEV] Registering slash commands...');
       await rest.put(
         Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
@@ -60,11 +83,7 @@ client.on(Events.InteractionCreate, async interaction => {
       await command.execute(interaction);
     } catch (error) {
       console.error(error);
-      await interaction.reply({ content: '❌ There was an error executing this command!', ephemeral: true });
+      await interaction.reply({ content: '❌ There was an error executing this command!', flags: 64 });
     }
-  }
-
-  if (interaction.isButton()) {
-    await interaction.reply({ content: `✅ You voted for **${interaction.component.label}**`, ephemeral: true });
   }
 });
