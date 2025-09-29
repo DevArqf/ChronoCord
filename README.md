@@ -20,5 +20,3 @@ Members vote on their availability, and the bot automatically highlights the tim
 
 ## 📜 License
 MIT License – free to use and modify.
-
-Would you like me to make this **super minimal (like 4–5 lines only)** so it fits perfectly as both the GitHub *description* and README, or do you prefer keeping this medium-length one?
