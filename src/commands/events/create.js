@@ -154,17 +154,25 @@ module.exports = {
 
     let pollMessage;
     try {
-      if (warned) pollMessage = await interaction.followUp({ embeds: [buildEmbed()], components: [row] , withResponse: true }).catch(() => null);
-      else pollMessage = await interaction.reply({ embeds: [buildEmbed()], components: [row], withResponse: true }).catch(() => null);
-      // if discord.js older version: withResponse may not be available; fallback handled by catch
-      if (!pollMessage) {
-        // try legacy fetchReply flag if withResponse didn't work
-        if (warned) pollMessage = await interaction.followUp({ embeds: [buildEmbed()], components: [row], fetchReply: true }).catch(() => null);
-        else pollMessage = await interaction.reply({ embeds: [buildEmbed()], components: [row], fetchReply: true }).catch(() => null);
+      // use fetchReply to ensure we get a Message object (required for createMessageComponentCollector)
+      if (warned || interaction.replied) {
+        pollMessage = await interaction.followUp({ embeds: [buildEmbed()], components: [row], fetchReply: true });
+      } else {
+        pollMessage = await interaction.reply({ embeds: [buildEmbed()], components: [row], fetchReply: true });
       }
     } catch (err) {
-      console.error('Failed to send poll message:', err);
-      return;
+      console.error('Failed to send poll message via interaction:', err);
+      // fallback: post directly to channel and inform the user
+      try {
+        const channel = interaction.channel ?? await interaction.client.channels.fetch(interaction.channelId).catch(() => null);
+        if (!channel || !channel.isTextBased()) throw new Error('No channel available for fallback send');
+        pollMessage = await channel.send({ embeds: [buildEmbed()], components: [row] });
+        // try to inform user that we posted to channel
+        try { await interaction.followUp({ content: 'Posted poll to channel (could not reply to the interaction).', flags: 64 }); } catch {}
+      } catch (fallbackErr) {
+        console.error('Fallback send failed:', fallbackErr);
+        return;
+      }
     }
 
     if (!pollMessage) return;
@@ -205,7 +213,7 @@ module.exports = {
     // notify user with UID + link (use normalized notify color)
     const link = `https://discord.com/channels/${record.guildId}/${record.channelId}/${record.messageId}`;
     const notify = new EmbedBuilder()
-      .setTitle('Poll Created ✅')
+      .setTitle('Poll Created')
       .setDescription('Your availability poll has been created. Share the link below or use the UID to reference it.')
       .setColor(notifyColor)
       .addFields(

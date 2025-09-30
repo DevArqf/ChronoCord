@@ -209,8 +209,8 @@ module.exports = {
 
       // reply to the user with result (non-ephemeral)
       const resultLines = [];
-      if (deleted.length) resultLines.push(`✅ Deleted: ${deleted.map(u => `\`${u}\``).join(', ')}`);
-      if (failed.length) resultLines.push(`❌ Failed: ${failed.map(u => `\`${u}\``).join(', ')}`);
+      if (deleted.length) resultLines.push(`\`✅\` Deleted: ${deleted.map(u => `\`${u}\``).join(', ')}`);
+      if (failed.length) resultLines.push(`\`❌\` Failed: ${failed.map(u => `\`${u}\``).join(', ')}`);
       if (!resultLines.length) resultLines.push('No events were deleted.');
 
       try {
